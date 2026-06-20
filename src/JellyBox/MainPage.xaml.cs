@@ -1,3 +1,5 @@
+using System.ComponentModel;
+using JellyBox.Models;
 using JellyBox.ViewModels;
 using Microsoft.Extensions.DependencyInjection;
 using Windows.UI.Core;
@@ -11,6 +13,8 @@ namespace JellyBox;
 internal sealed partial class MainPage : Page
 {
     private FrameworkElement? _lastFocusedElement;
+    private bool _ignoreNextQuerySubmitted;
+    private bool _suppressSearchTextSync;
 
     public MainPage()
     {
@@ -18,6 +22,7 @@ internal sealed partial class MainPage : Page
 
         ViewModel = AppServices.Instance.ServiceProvider.GetRequiredService<MainPageViewModel>();
         ViewModel.IsMenuOpenChanged += OnIsMenuOpenChanged;
+        ViewModel.Search.PropertyChanged += OnSearchPropertyChanged;
 
         // Cache the page state so the ContentFrame's BackStack can be preserved
         NavigationCacheMode = NavigationCacheMode.Required;
@@ -33,6 +38,7 @@ internal sealed partial class MainPage : Page
         Unloaded += (sender, e) =>
         {
             ContentFrame.Navigated -= ContentFrameNavigated;
+            ViewModel.Search.PropertyChanged -= OnSearchPropertyChanged;
         };
     }
 
@@ -109,6 +115,73 @@ internal sealed partial class MainPage : Page
     private void CloseNavigation(object sender, TappedRoutedEventArgs e)
     {
         ViewModel.CloseNavigationCommand.Execute(null);
+    }
+
+    private void OnSearchPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (_suppressSearchTextSync
+            || e.PropertyName is not nameof(ShellSearchViewModel.Query)
+            || SearchBox.Text == ViewModel.Search.Query)
+        {
+            return;
+        }
+
+        SearchBox.Text = ViewModel.Search.Query;
+    }
+
+    private void SearchBox_TextChanged(AutoSuggestBox sender, AutoSuggestBoxTextChangedEventArgs args)
+    {
+        if (args.Reason == AutoSuggestionBoxTextChangeReason.UserInput)
+        {
+            ViewModel.Search.Query = sender.Text ?? string.Empty;
+        }
+    }
+
+    private void SearchBox_QuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
+    {
+        if (_ignoreNextQuerySubmitted)
+        {
+            _ignoreNextQuerySubmitted = false;
+            return;
+        }
+
+        if (args.ChosenSuggestion is SearchSuggestion suggestion)
+        {
+            OpenSearchSuggestion(suggestion);
+            return;
+        }
+
+        ViewModel.Search.SubmitQuery(args.QueryText);
+    }
+
+    private void SearchBox_SuggestionChosen(AutoSuggestBox sender, AutoSuggestBoxSuggestionChosenEventArgs args)
+    {
+        if (args.SelectedItem is SearchSuggestion suggestion)
+        {
+            OpenSearchSuggestion(suggestion);
+        }
+    }
+
+    private void OpenSearchSuggestion(SearchSuggestion suggestion)
+    {
+        _ignoreNextQuerySubmitted = true;
+        ViewModel.Search.PrepareSuggestionNavigation();
+        ViewModel.Search.ClearSuggestions();
+
+        _ = Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
+        {
+            _suppressSearchTextSync = true;
+            try
+            {
+                ViewModel.Search.SetQueryText(suggestion.DisplayText);
+                SearchBox.Text = suggestion.DisplayText;
+                ViewModel.Search.NavigateToItem(suggestion.ItemId);
+            }
+            finally
+            {
+                _suppressSearchTextSync = false;
+            }
+        });
     }
 
     internal sealed record Parameters(Action DeferredNavigationAction);
