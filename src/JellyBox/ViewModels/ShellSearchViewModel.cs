@@ -52,6 +52,13 @@ internal sealed partial class ShellSearchViewModel : ObservableObject
 
     public void SetQueryText(string query) => Query = query;
 
+    public void ClearQuery()
+    {
+        Interlocked.Increment(ref _searchVersion);
+        Query = string.Empty;
+        ReplaceSuggestions([]);
+    }
+
     public void NavigateToItem(Guid itemId)
         => _navigationManager.NavigateToItem(itemId);
 

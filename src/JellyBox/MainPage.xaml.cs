@@ -2,6 +2,7 @@ using System.ComponentModel;
 using JellyBox.Models;
 using JellyBox.Services;
 using JellyBox.ViewModels;
+using JellyBox.Views;
 using Microsoft.Extensions.DependencyInjection;
 using Windows.UI.Core;
 using Windows.UI.Xaml;
@@ -113,6 +114,12 @@ internal sealed partial class MainPage : Page
             () =>
             {
                 _shellFocus.OnContentNavigated();
+
+                if (e.SourcePageType != typeof(Search))
+                {
+                    ClearSearchField();
+                }
+
                 ViewModel.CloseNavigationCommand.Execute(null);
                 ViewModel.UpdateSelectedMenuItem();
             });
@@ -178,21 +185,31 @@ internal sealed partial class MainPage : Page
         _ignoreNextQuerySubmitted = true;
         ViewModel.Search.PrepareSuggestionNavigation();
         ViewModel.Search.ClearSuggestions();
+        ClearSearchField();
 
         _ = Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
         {
-            _suppressSearchTextSync = true;
-            try
-            {
-                ViewModel.Search.SetQueryText(suggestion.DisplayText);
-                SearchBox.Text = suggestion.DisplayText;
-                ViewModel.Search.NavigateToItem(suggestion.ItemId);
-            }
-            finally
-            {
-                _suppressSearchTextSync = false;
-            }
+            ViewModel.Search.NavigateToItem(suggestion.ItemId);
         });
+    }
+
+    private void ClearSearchField()
+    {
+        if (string.IsNullOrEmpty(ViewModel.Search.Query) && string.IsNullOrEmpty(SearchBox.Text))
+        {
+            return;
+        }
+
+        _suppressSearchTextSync = true;
+        try
+        {
+            ViewModel.Search.ClearQuery();
+            SearchBox.Text = string.Empty;
+        }
+        finally
+        {
+            _suppressSearchTextSync = false;
+        }
     }
 
     internal sealed record Parameters(Action DeferredNavigationAction);

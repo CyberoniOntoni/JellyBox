@@ -4,7 +4,6 @@ using Jellyfin.Sdk.Generated.Models;
 using Microsoft.Extensions.DependencyInjection;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
-using Windows.UI.Xaml.Media;
 using Windows.UI.Xaml.Navigation;
 
 namespace JellyBox.Views;
@@ -55,13 +54,11 @@ internal sealed partial class Library : Page
             return;
         }
 
-        string resourceKey = ViewModel.HasActiveFilters ? "AccentColor" : "BorderSubtle";
-        if (Application.Current.Resources[resourceKey] is Brush brush)
-        {
-            FilterButton.BorderBrush = brush;
-        }
-
-        FilterButton.XYFocusRight = ViewModel.HasActiveFilters ? ClearFiltersButton : FilterButton;
+        FilterButton.BorderBrush = LibraryViewModel.GetFilterBorderBrush(ViewModel.HasActiveFilters);
+        FilterButton.XYFocusRight = LibraryViewModel.GetFilterXYFocusRight(
+            ViewModel.HasActiveFilters,
+            FilterButton,
+            ClearFiltersButton);
         ClearFiltersButton.XYFocusRight = ClearFiltersButton;
     }
 

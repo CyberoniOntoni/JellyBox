@@ -19,6 +19,7 @@ internal sealed class SectionNavigationBehavior : Behavior<ItemsControl>
 #pragma warning restore CA1812
 {
     private ScrollViewer? _scrollViewer;
+    private ShellFocusCoordinator? _shellFocus;
 
     /// <summary>
     /// The ScrollViewer to use for bringing items into view.
@@ -60,6 +61,7 @@ internal sealed class SectionNavigationBehavior : Behavior<ItemsControl>
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         _scrollViewer = ScrollViewer ?? AssociatedObject.FindAncestor<ScrollViewer>();
+        _shellFocus ??= AppServices.Instance.ServiceProvider.GetRequiredService<ShellFocusCoordinator>();
     }
 
     private void OnGotFocus(object sender, RoutedEventArgs e)
@@ -107,11 +109,8 @@ internal sealed class SectionNavigationBehavior : Behavior<ItemsControl>
         {
             if (TrapAtTop)
             {
-                ShellFocusCoordinator shellFocus = AppServices.Instance.ServiceProvider.GetRequiredService<ShellFocusCoordinator>();
-                if (shellFocus.TryFocusSearch())
-                {
-                    e.TryCancel();
-                }
+                _shellFocus?.TryFocusSearch();
+                e.TryCancel();
             }
 
             return;
