@@ -1,6 +1,8 @@
 using System.ComponentModel;
 using JellyBox.Models;
+using JellyBox.Services;
 using JellyBox.ViewModels;
+using JellyBox.Views;
 using Microsoft.Extensions.DependencyInjection;
 using Windows.UI.Core;
 using Windows.UI.Xaml;
@@ -15,10 +17,14 @@ internal sealed partial class MainPage : Page
     private FrameworkElement? _lastFocusedElement;
     private bool _ignoreNextQuerySubmitted;
     private bool _suppressSearchTextSync;
+    private readonly ShellFocusCoordinator _shellFocus;
 
     public MainPage()
     {
         InitializeComponent();
+
+        _shellFocus = AppServices.Instance.ServiceProvider.GetRequiredService<ShellFocusCoordinator>();
+        _shellFocus.RegisterSearchBox(SearchBox);
 
         ViewModel = AppServices.Instance.ServiceProvider.GetRequiredService<MainPageViewModel>();
         ViewModel.IsMenuOpenChanged += OnIsMenuOpenChanged;
@@ -107,9 +113,21 @@ internal sealed partial class MainPage : Page
             CoreDispatcherPriority.Normal,
             () =>
             {
+                _shellFocus.OnContentNavigated();
+
+                if (e.SourcePageType != typeof(Search))
+                {
+                    ClearSearchField();
+                }
+
                 ViewModel.CloseNavigationCommand.Execute(null);
                 ViewModel.UpdateSelectedMenuItem();
             });
+    }
+
+    private void SearchBox_LostFocus(object sender, RoutedEventArgs e)
+    {
+        _shellFocus.OnSearchDismissed();
     }
 
     private void CloseNavigation(object sender, TappedRoutedEventArgs e)
@@ -167,21 +185,31 @@ internal sealed partial class MainPage : Page
         _ignoreNextQuerySubmitted = true;
         ViewModel.Search.PrepareSuggestionNavigation();
         ViewModel.Search.ClearSuggestions();
+        ClearSearchField();
 
         _ = Dispatcher.RunAsync(CoreDispatcherPriority.Normal, () =>
         {
-            _suppressSearchTextSync = true;
-            try
-            {
-                ViewModel.Search.SetQueryText(suggestion.DisplayText);
-                SearchBox.Text = suggestion.DisplayText;
-                ViewModel.Search.NavigateToItem(suggestion.ItemId);
-            }
-            finally
-            {
-                _suppressSearchTextSync = false;
-            }
+            ViewModel.Search.NavigateToItem(suggestion.ItemId);
         });
+    }
+
+    private void ClearSearchField()
+    {
+        if (string.IsNullOrEmpty(ViewModel.Search.Query) && string.IsNullOrEmpty(SearchBox.Text))
+        {
+            return;
+        }
+
+        _suppressSearchTextSync = true;
+        try
+        {
+            ViewModel.Search.ClearQuery();
+            SearchBox.Text = string.Empty;
+        }
+        finally
+        {
+            _suppressSearchTextSync = false;
+        }
     }
 
     internal sealed record Parameters(Action DeferredNavigationAction);

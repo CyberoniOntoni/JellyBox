@@ -3,6 +3,7 @@ using JellyBox.Views;
 using Jellyfin.Sdk;
 using Jellyfin.Sdk.Generated.Models;
 using Windows.ApplicationModel;
+using Windows.ApplicationModel.Core;
 using Windows.System;
 using Windows.UI.Core;
 using Windows.UI.Input;

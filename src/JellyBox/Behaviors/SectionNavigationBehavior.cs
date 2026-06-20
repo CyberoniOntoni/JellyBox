@@ -1,3 +1,6 @@
+using JellyBox;
+using JellyBox.Services;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Xaml.Interactivity;
 using Windows.Foundation;
 using Windows.UI.Core;
@@ -11,9 +14,12 @@ namespace JellyBox.Behaviors;
 /// Handles vertical navigation between horizontal list rows within a sections container.
 /// Maintains horizontal position when moving between rows and handles edge trapping.
 /// </summary>
+#pragma warning disable CA1812 // Instantiated via XAML Interaction.Behaviors.
 internal sealed class SectionNavigationBehavior : Behavior<ItemsControl>
+#pragma warning restore CA1812
 {
     private ScrollViewer? _scrollViewer;
+    private ShellFocusCoordinator? _shellFocus;
 
     /// <summary>
     /// The ScrollViewer to use for bringing items into view.
@@ -55,6 +61,7 @@ internal sealed class SectionNavigationBehavior : Behavior<ItemsControl>
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         _scrollViewer = ScrollViewer ?? AssociatedObject.FindAncestor<ScrollViewer>();
+        _shellFocus ??= AppServices.Instance.ServiceProvider.GetRequiredService<ShellFocusCoordinator>();
     }
 
     private void OnGotFocus(object sender, RoutedEventArgs e)
@@ -102,6 +109,7 @@ internal sealed class SectionNavigationBehavior : Behavior<ItemsControl>
         {
             if (TrapAtTop)
             {
+                _shellFocus?.TryFocusSearch();
                 e.TryCancel();
             }
 
