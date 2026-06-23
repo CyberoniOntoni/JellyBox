@@ -15,7 +15,7 @@ namespace JellyBox;
 internal sealed partial class MainPage : Page
 {
     private FrameworkElement? _lastFocusedElement;
-    private bool _ignoreNextQuerySubmitted;
+    private int _suppressSearchSubmitEvents;
     private bool _suppressSearchTextSync;
 
     public MainPage()
@@ -135,7 +135,24 @@ internal sealed partial class MainPage : Page
 
     private void SearchBox_LostFocus(object sender, RoutedEventArgs e)
     {
+        // Keep the search box in the focus order while suggestions are open so the user
+        // can dismiss the OSK with B and navigate the list with the d-pad.
+        if (ViewModel.Search.Suggestions.Count > 0)
+        {
+            return;
+        }
+
         SearchBox.IsTabStop = false;
+    }
+
+    private void SearchBox_PreviewKeyDown(object sender, KeyRoutedEventArgs e)
+    {
+        if (GamepadInput.IsBackKey(e.Key))
+        {
+            // Dismissing the OSK can spuriously fire QuerySubmitted/SuggestionChosen with
+            // the first suggestion; swallow the next couple of submit events.
+            SuppressSearchSubmitEvents(2);
+        }
     }
 
     private void CloseNavigation(object sender, TappedRoutedEventArgs e)
@@ -165,32 +182,45 @@ internal sealed partial class MainPage : Page
 
     private void SearchBox_QuerySubmitted(AutoSuggestBox sender, AutoSuggestBoxQuerySubmittedEventArgs args)
     {
-        if (_ignoreNextQuerySubmitted)
+        if (ConsumeSuppressedSearchSubmitEvent())
         {
-            _ignoreNextQuerySubmitted = false;
             return;
         }
 
-        if (args.ChosenSuggestion is SearchSuggestion suggestion)
-        {
-            OpenSearchSuggestion(suggestion);
-            return;
-        }
-
+        // ChosenSuggestion is populated when the OSK is dismissed with B on Xbox, not only
+        // on deliberate picks. Explicit suggestion selection goes through SuggestionChosen.
         ViewModel.Search.SubmitQuery(args.QueryText);
     }
 
     private void SearchBox_SuggestionChosen(AutoSuggestBox sender, AutoSuggestBoxSuggestionChosenEventArgs args)
     {
+        if (ConsumeSuppressedSearchSubmitEvent())
+        {
+            return;
+        }
+
         if (args.SelectedItem is SearchSuggestion suggestion)
         {
             OpenSearchSuggestion(suggestion);
         }
     }
 
+    private void SuppressSearchSubmitEvents(int count) => _suppressSearchSubmitEvents = count;
+
+    private bool ConsumeSuppressedSearchSubmitEvent()
+    {
+        if (_suppressSearchSubmitEvents <= 0)
+        {
+            return false;
+        }
+
+        _suppressSearchSubmitEvents--;
+        return true;
+    }
+
     private void OpenSearchSuggestion(SearchSuggestion suggestion)
     {
-        _ignoreNextQuerySubmitted = true;
+        SuppressSearchSubmitEvents(1);
 
         _suppressSearchTextSync = true;
         try
